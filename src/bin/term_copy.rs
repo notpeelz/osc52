@@ -4,13 +4,12 @@ use std::os::unix::ffi::OsStringExt;
 use std::sync::Arc;
 
 use eyre::{Context, Result};
-
-use crate::term::{self, Terminal};
-
-pub const NAME: &str = "term-copy";
+use term_clipboard::cli::{self, reset_sigpipe};
+use term_clipboard::term::{self, Terminal};
 
 #[derive(clap::Parser)]
-pub struct Options {
+#[command(name = cli::NAME, version = cli::VERSION)]
+struct Options {
     /// Override the inferred MIME type for the content
     #[arg(
         name = "MIME/TYPE",
@@ -56,7 +55,11 @@ fn is_text(mime_type: &str) -> bool {
     }
 }
 
-pub fn main(mut opts: Options) -> Result<()> {
+fn main() -> Result<()> {
+    reset_sigpipe();
+
+    let mut opts = <Options as clap::Parser>::parse();
+
     let term = Terminal::new(term::tty()?)?;
     let term = drop_guard::guard(Arc::new(term), |term| {
         let _ = term.restore_attrs();

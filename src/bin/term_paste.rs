@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use eyre::Result;
 
-use crate::term::{self, Terminal};
-
-pub const NAME: &str = "term-paste";
+use term_clipboard::cli;
+use term_clipboard::term::{self, Terminal};
 
 #[derive(clap::Parser)]
-pub struct Options {
+#[command(name = cli::NAME, version = cli::VERSION)]
+struct Options {
     /// List the offered MIME types instead of pasting
     #[arg(long, short)]
     pub list_types: bool,
@@ -32,7 +32,9 @@ pub struct Options {
     pub mime_type: Option<String>,
 }
 
-pub fn main(opts: Options) -> Result<()> {
+fn main() -> Result<()> {
+    let opts = <Options as clap::Parser>::parse();
+
     let term = Terminal::new(term::tty()?)?;
     let term = drop_guard::guard(Arc::new(term), |term| {
         let _ = term.restore_attrs();
