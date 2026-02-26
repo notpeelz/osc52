@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStringExt;
 
-use eyre::Result;
+use eyre::{Context, Result};
 use regex::bytes::Regex;
 
 use crate::base64;
@@ -64,7 +64,7 @@ impl Terminal {
     pub fn osc52_read(&self) -> Result<OsString> {
         // TODO: reuse regex
         let pattern =
-            Regex::new(r"(?-u)\x1B]52;\w?;(?<str>[A-Za-z0-9+/=]*)[^A-Za-z0-9+/=]").unwrap();
+            Regex::new(r"(?-u)\x1B\]52;\w?;(?<str>[A-Za-z0-9+/=]*)[^A-Za-z0-9+/=]").unwrap();
 
         let mut tty = self.tty();
         tty.write_all(b"\x1B]52;;?\x1B\\")?;
@@ -95,6 +95,39 @@ impl Terminal {
         tty.write_all(str.as_bytes())?;
         tty.write_all(b"\x1B\\")?;
         Ok(())
+    }
+
+    pub fn query_osc5522(&self) -> Result<bool> {
+        // TODO: reuse regex
+        let pattern = Regex::new(r"(?-u)\x1B\[\?5522;(?<code>.*)\$y").unwrap();
+
+        let mut tty = self.tty();
+        tty.write_all(b"\x1B[?5522$p")?;
+
+        let mut buf = Vec::new();
+        let mut n = 0_usize;
+        let data = loop {
+            n += tty.read_append(&mut buf, 128)?;
+            let buf = &buf[..n];
+
+            if let Some(s) = pattern
+                .captures_iter(buf)
+                .map(|c| c.name("code").unwrap().as_bytes())
+                .next()
+            {
+                break s;
+            }
+        };
+        let data = str::from_utf8(&data)?;
+        let code = data
+            .parse::<u32>()
+            .wrap_err("DECRQM response code is not a number")?;
+
+        if code == 0 || code == 4 {
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 
     // TODO: osc5522
