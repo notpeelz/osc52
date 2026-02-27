@@ -1,9 +1,10 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use eyre::Result;
+use eyre::{Context, Result};
 
 use term_clipboard::cli;
+use term_clipboard::osc52::Osc52TermExt;
 use term_clipboard::term::{self, Terminal};
 
 #[derive(clap::Parser)]
@@ -49,7 +50,10 @@ fn main() -> Result<()> {
     }));
 
     term.set_raw_mode()?;
-    let str = term.osc52_read()?;
+
+    let osc52 = term.detect_osc52()?.expect("TODO");
+    let str = osc52.read()?;
+
     term.restore_attrs()?;
 
     let stdout = std::io::stdout();

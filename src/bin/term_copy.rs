@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use eyre::{Context, Result};
 use term_clipboard::cli::{self, reset_sigpipe};
+use term_clipboard::osc52::Osc52TermExt;
 use term_clipboard::term::{self, Terminal};
 
 #[derive(clap::Parser)]
@@ -73,9 +74,11 @@ fn main() -> Result<()> {
         }
     }));
 
+    let osc52 = term.detect_osc52()?.expect("TODO");
+
     if opts.clear {
         term.set_raw_mode()?;
-        term.osc52_write(&[])?;
+        osc52.write(&[])?;
         term.restore_attrs()?;
         return Ok(());
     }
@@ -105,7 +108,7 @@ fn main() -> Result<()> {
     }
 
     term.set_raw_mode()?;
-    term.osc52_write(&data)?;
+    osc52.write(&data)?;
     term.restore_attrs()?;
 
     Ok(())

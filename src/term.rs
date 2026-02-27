@@ -1,15 +1,5 @@
-use std::ffi::OsString;
-use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::fd::AsRawFd;
-use std::os::unix::ffi::OsStringExt;
-
-use eyre::{Context, Result};
-use regex::bytes::Regex;
-
-use crate::base64;
-use crate::lock_ignore_poison_ext::LockResultExt;
-use crate::read_append_ext::ReadAppendExt;
 
 pub fn tty() -> std::io::Result<std::fs::File> {
     std::fs::OpenOptions::new()
@@ -19,7 +9,7 @@ pub fn tty() -> std::io::Result<std::fs::File> {
 }
 
 pub struct Terminal {
-    tty: std::sync::Mutex<std::fs::File>,
+    pub tty: std::fs::File,
     termios: libc::termios,
 }
 
@@ -31,17 +21,21 @@ impl Terminal {
             return Err(std::io::Error::from_raw_os_error(r));
         }
 
-        Ok(Self {
-            tty: std::sync::Mutex::new(tty),
+        let term = Self {
+            tty,
             termios: unsafe { termios.assume_init() },
-        })
+        };
+
+        // TODO: use DA1 to response to determine OSC 52 support:
+        // https://github.com/neovim/neovim/pull/34860/changes
+
+        Ok(term)
     }
 
     pub fn set_raw_mode(&self) -> std::io::Result<()> {
-        let tty = self.tty();
         let mut termios = self.termios.clone();
         unsafe { libc::cfmakeraw(&raw mut termios) };
-        let r = unsafe { libc::tcsetattr(tty.as_raw_fd(), libc::TCSANOW, &raw const termios) };
+        let r = unsafe { libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSANOW, &raw const termios) };
         if r != 0 {
             return Err(std::io::Error::from_raw_os_error(r));
         }
@@ -49,86 +43,12 @@ impl Terminal {
     }
 
     pub fn restore_attrs(&self) -> std::io::Result<()> {
-        let tty = self.tty();
-        let r = unsafe { libc::tcsetattr(tty.as_raw_fd(), libc::TCSANOW, &raw const self.termios) };
+        let r = unsafe {
+            libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSANOW, &raw const self.termios)
+        };
         if r != 0 {
             return Err(std::io::Error::from_raw_os_error(r));
         }
         Ok(())
     }
-
-    pub fn tty(&self) -> std::sync::MutexGuard<'_, std::fs::File> {
-        self.tty.lock().ignore_poison()
-    }
-
-    pub fn osc52_read(&self) -> Result<OsString> {
-        // TODO: reuse regex
-        let pattern =
-            Regex::new(r"(?-u)\x1B\]52;\w?;(?<str>[A-Za-z0-9+/=]*)[^A-Za-z0-9+/=]").unwrap();
-
-        let mut tty = self.tty();
-        tty.write_all(b"\x1B]52;;?\x1B\\")?;
-
-        let mut buf = Vec::new();
-        let mut n = 0_usize;
-        let data = loop {
-            n += tty.read_append(&mut buf, 4096)?;
-            let buf = &buf[..n];
-
-            if let Some(s) = pattern
-                .captures_iter(buf)
-                .map(|c| c.name("str").unwrap().as_bytes())
-                .next()
-            {
-                break s;
-            }
-        };
-        let data = str::from_utf8(&data)?;
-        let data = base64::decode(data)?;
-        Ok(OsString::from_vec(data))
-    }
-
-    pub fn osc52_write(&self, str: &[u8]) -> Result<()> {
-        let str = base64::encode(str)?;
-        let mut tty = self.tty();
-        tty.write_all(b"\x1B]52;;")?;
-        tty.write_all(str.as_bytes())?;
-        tty.write_all(b"\x1B\\")?;
-        Ok(())
-    }
-
-    pub fn query_osc5522(&self) -> Result<bool> {
-        // TODO: reuse regex
-        let pattern = Regex::new(r"(?-u)\x1B\[\?5522;(?<code>.*)\$y").unwrap();
-
-        let mut tty = self.tty();
-        tty.write_all(b"\x1B[?5522$p")?;
-
-        let mut buf = Vec::new();
-        let mut n = 0_usize;
-        let data = loop {
-            n += tty.read_append(&mut buf, 128)?;
-            let buf = &buf[..n];
-
-            if let Some(s) = pattern
-                .captures_iter(buf)
-                .map(|c| c.name("code").unwrap().as_bytes())
-                .next()
-            {
-                break s;
-            }
-        };
-        let data = str::from_utf8(&data)?;
-        let code = data
-            .parse::<u32>()
-            .wrap_err("DECRQM response code is not a number")?;
-
-        if code == 0 || code == 4 {
-            return Ok(false);
-        }
-
-        Ok(true)
-    }
-
-    // TODO: osc5522
 }
