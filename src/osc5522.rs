@@ -21,6 +21,8 @@ impl Osc5522TermExt for Arc<Terminal> {
         static PATTERN: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"(?-u)\x1B\[\?5522;(?<code>.*)\$y").unwrap());
 
+        let _ = self.set_raw_mode()?;
+
         let mut tty = &self.tty;
         tty.write_all(b"\x1B[?5522$p")?;
 
