@@ -49,12 +49,12 @@ fn main() -> Result<()> {
         }
     }));
 
-    term.set_raw_mode()?;
+    let str = {
+        let _ = term.set_raw_mode()?;
 
-    let osc52 = term.detect_osc52()?.expect("TODO");
-    let str = osc52.read()?;
-
-    term.restore_attrs()?;
+        let osc52 = term.detect_osc52()?.expect("TODO");
+        osc52.read()?
+    };
 
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();

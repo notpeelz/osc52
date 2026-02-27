@@ -77,9 +77,8 @@ fn main() -> Result<()> {
     let osc52 = term.detect_osc52()?.expect("TODO");
 
     if opts.clear {
-        term.set_raw_mode()?;
+        let _ = term.set_raw_mode()?;
         osc52.write(&[])?;
-        term.restore_attrs()?;
         return Ok(());
     }
 
@@ -107,9 +106,8 @@ fn main() -> Result<()> {
         }
     }
 
-    term.set_raw_mode()?;
+    let _ = term.set_raw_mode()?;
     osc52.write(&data)?;
-    term.restore_attrs()?;
 
     Ok(())
 }
