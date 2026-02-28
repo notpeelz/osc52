@@ -9,6 +9,23 @@ pub fn tty() -> std::io::Result<std::fs::File> {
         .open("/dev/tty")
 }
 
+fn tcgetattr(tty: &std::fs::File) -> std::io::Result<libc::termios> {
+    let mut termios = MaybeUninit::<libc::termios>::zeroed();
+    let r = unsafe { libc::tcgetattr(tty.as_raw_fd(), termios.as_mut_ptr()) };
+    if r != 0 {
+        return Err(std::io::Error::from_raw_os_error(r));
+    }
+    Ok(unsafe { termios.assume_init() })
+}
+
+fn tcsetattr(tty: &std::fs::File, termios: &libc::termios) -> std::io::Result<()> {
+    let r = unsafe { libc::tcsetattr(tty.as_raw_fd(), libc::TCSANOW, &raw const *termios) };
+    if r != 0 {
+        return Err(std::io::Error::from_raw_os_error(r));
+    }
+    Ok(())
+}
+
 pub struct Terminal {
     pub tty: std::fs::File,
     termios: libc::termios,
@@ -22,7 +39,7 @@ pub struct RawModeGuard<'a> {
 
 impl<'a> RawModeGuard<'a> {
     fn new(tty: &std::fs::File) -> std::io::Result<Self> {
-        let termios = read_termios(tty)?;
+        let termios = tcgetattr(tty)?;
         Ok(Self {
             fd: tty.as_raw_fd(),
             termios,
@@ -46,18 +63,9 @@ impl<'a> Drop for RawModeGuard<'a> {
     }
 }
 
-fn read_termios(tty: &std::fs::File) -> std::io::Result<libc::termios> {
-    let mut termios = MaybeUninit::<libc::termios>::zeroed();
-    let r = unsafe { libc::tcgetattr(tty.as_raw_fd(), termios.as_mut_ptr()) };
-    if r != 0 {
-        return Err(std::io::Error::from_raw_os_error(r));
-    }
-    Ok(unsafe { termios.assume_init() })
-}
-
 impl Terminal {
     pub fn new(tty: std::fs::File) -> std::io::Result<Self> {
-        let termios = read_termios(&tty)?;
+        let termios = tcgetattr(&tty)?;
         let term = Self { tty, termios };
 
         // TODO: use DA1 to response to determine OSC 52 support:
@@ -69,20 +77,11 @@ impl Terminal {
     pub fn set_raw_mode(&self) -> std::io::Result<RawModeGuard<'_>> {
         let mut termios = self.termios.clone();
         unsafe { libc::cfmakeraw(&raw mut termios) };
-        let r = unsafe { libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSANOW, &raw const termios) };
-        if r != 0 {
-            return Err(std::io::Error::from_raw_os_error(r));
-        }
+        tcsetattr(&self.tty, &termios)?;
         RawModeGuard::new(&self.tty)
     }
 
     pub fn restore_attrs(&self) -> std::io::Result<()> {
-        let r = unsafe {
-            libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSANOW, &raw const self.termios)
-        };
-        if r != 0 {
-            return Err(std::io::Error::from_raw_os_error(r));
-        }
-        Ok(())
+        tcsetattr(&self.tty, &self.termios)
     }
 }
