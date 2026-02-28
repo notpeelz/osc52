@@ -37,6 +37,7 @@ impl Osc52 {
 
         let mut tty = &self.term.tty;
         tty.write_all(b"\x1B]52;;?\x1B\\")?;
+        tty.flush()?;
 
         let mut buf = Vec::new();
         let mut n = 0_usize;
@@ -63,6 +64,7 @@ impl Osc52 {
         tty.write_all(b"\x1B]52;;")?;
         tty.write_all(str.as_bytes())?;
         tty.write_all(b"\x1B\\")?;
+        tty.flush()?;
         Ok(())
     }
 }

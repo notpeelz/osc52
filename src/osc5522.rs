@@ -25,6 +25,7 @@ impl Osc5522TermExt for Arc<Terminal> {
 
         let mut tty = &self.tty;
         tty.write_all(b"\x1B[?5522$p")?;
+        tty.flush()?;
 
         let mut buf = Vec::new();
         let mut n = 0_usize;
