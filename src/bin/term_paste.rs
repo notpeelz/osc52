@@ -1,9 +1,9 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use eyre::{Context, Result};
+use eyre::Result;
 
-use term_clipboard::cli;
+use term_clipboard::cli::{self, reset_sigpipe};
 use term_clipboard::osc52::Osc52TermExt;
 use term_clipboard::term::{self, Terminal};
 
@@ -34,6 +34,8 @@ struct Options {
 }
 
 fn main() -> Result<()> {
+    reset_sigpipe();
+
     let opts = <Options as clap::Parser>::parse();
 
     let term = Terminal::new(term::tty()?)?;
