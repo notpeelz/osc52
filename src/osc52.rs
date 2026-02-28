@@ -1,14 +1,14 @@
-use std::{
-    ffi::OsString,
-    io::Write,
-    os::unix::ffi::OsStringExt,
-    sync::{Arc, LazyLock},
-};
+use std::ffi::OsString;
+use std::io::Write;
+use std::os::unix::ffi::OsStringExt;
+use std::sync::{Arc, LazyLock};
 
 use eyre::Result;
 use regex::bytes::Regex;
 
-use crate::{base64, read_append_ext::ReadAppendExt, term::Terminal};
+use crate::base64;
+use crate::read_append_ext::ReadAppendExt;
+use crate::term::Terminal;
 
 pub struct Osc52 {
     term: Arc<Terminal>,

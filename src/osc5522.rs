@@ -1,12 +1,11 @@
-use std::{
-    io::Write,
-    sync::{Arc, LazyLock},
-};
+use std::io::Write;
+use std::sync::{Arc, LazyLock};
 
 use eyre::{Context, Result};
 use regex::bytes::Regex;
 
-use crate::{read_append_ext::ReadAppendExt, term::Terminal};
+use crate::read_append_ext::ReadAppendExt;
+use crate::term::Terminal;
 
 pub struct Osc5522 {
     term: Arc<Terminal>,
